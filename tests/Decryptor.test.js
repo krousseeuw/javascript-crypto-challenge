@@ -15,7 +15,7 @@ describe('Decryption', () => {
     msg = nacl.randombytes_buf(1024)
     nonce = nacl.randombytes_buf(nacl.crypto_secretbox_NONCEBYTES)
     ciphertext = nacl.crypto_secretbox_easy(msg, nonce, key)
-  }) 
+  })
 
   it('needs to be instantiated with a decryption key', async () => {
     let decryptor
