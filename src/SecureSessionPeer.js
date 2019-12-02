@@ -2,37 +2,68 @@ const _sodium = require('libsodium-wrappers');
 const Decryptor = require('./Decryptor');
 const Encryptor = require('./Encryptor');
 
+_server = null;
+
 // Server
 module.exports = async(peer) => {
     await _sodium.ready;
+    
+    _instance = {
+        encryptor: null,
+        decryptor: null,
+        receivedMessage: null,
+        clientKey: null
+    }
 
     var keypair = _sodium.crypto_kx_keypair();       
 
-    const publicKey = keypair.publicKey;
-    const privateKey = keypair.privateKey;    
-    var encryptor;
-    var decryptor;
+    isClient = false;
 
-    if(peer){    
-        clientKeys = _sodium.crypto_kx_client_session_keys(publicKey, privateKey, peer.publicKey);
-        decryptor = await Decryptor(peer.publicKey);
-        encryptor = await Encryptor(peer.publicKey);
-        
-    } else {
-        //serverKeys = _sodium.crypto_kx_server_session_keys(publicKey, privateKey);
-        decryptor = await Decryptor(publicKey);
-        encryptor = await Encryptor(publicKey);        
-    } 
+    const publicKey = keypair.publicKey;
+    const privateKey = keypair.privateKey;
+
+    if(peer){
+        clientKeys = _sodium.crypto_kx_client_session_keys(publicKey, privateKey, peer.publicKey);    
+        _instance.decryptor = await Decryptor(clientKeys.sharedRx);
+        _instance.encryptor = await Encryptor(clientKeys.sharedTx);
+        peer.createServer(publicKey);    
+    }
     
     
     return Object.freeze({
         publicKey: publicKey,
+        createServer: async(clientKey) => {
+            serverkeys = _sodium.crypto_kx_server_session_keys(publicKey, privateKey, clientKey);
+            _instance.decryptor = await Decryptor(serverkeys.sharedRx);
+            _instance.encryptor = await Encryptor(serverkeys.sharedTx);
+        },
         encrypt: (msg) => {
-            return encryptor.encrypt(msg);
+            return _instance.encryptor.encrypt(msg);
         },
         decrypt: (ciphertext, nonce) => {            
-            return decryptor.decrypt(ciphertext, nonce);
+            return _instance.decryptor.decrypt(ciphertext, nonce);
         },
+        // There is probably a much better way to do this
+        send: (msg) => {
+            if(isClient){
+                peer._instance.receivedMessage = _instance.encryptor.encrypt(msg);
+            } else {
+                _instance.receivedMessage = _instance.encryptor.encrypt(msg);
+            }
+        },
+        receive: () => {
+            let receivedCiphertext;
+            let receivedNonce;
+            if(isClient){
+                receivedCiphertext = peer._instance.receivedMessage.ciphertext;
+                receivedNonce = peer._instance.receivedMessage.nonce;
+            } else {
+                receivedCiphertext = _instance.receivedMessage.ciphertext;
+                receivedNonce = _instance.receivedMessage.nonce;
+            }
+
+            return _instance.decryptor.decrypt(receivedCiphertext, receivedNonce);
+        }
 
     });
 }
