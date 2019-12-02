@@ -15,13 +15,13 @@ module.exports = async(peer) => {
 
     if(peer){    
         clientKeys = _sodium.crypto_kx_client_session_keys(publicKey, privateKey, peer.publicKey);
-        decryptor = await Decryptor(clientKeys.sharedRx);
-        encryptor = await Encryptor(clientKeys.sharedTx);
+        decryptor = await Decryptor(peer.publicKey);
+        encryptor = await Encryptor(peer.publicKey);
         
     } else {
-        serverKeys = _sodium.crypto_kx_server_session_keys(publicKey, privateKey);
-        decryptor = await Decryptor(serverKeys.sharedRx);
-        encryptor = await Encryptor(privateKey.sharedTx);        
+        //serverKeys = _sodium.crypto_kx_server_session_keys(publicKey, privateKey);
+        decryptor = await Decryptor(publicKey);
+        encryptor = await Encryptor(publicKey);        
     } 
     
     
